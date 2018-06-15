@@ -1,12 +1,13 @@
-#include <llstdlib.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <string.h>
 
 #include "thpool.h"
 
-//线程数量
-static uint_t thread_num = 0;
+
+static uint_t th_num = 0;			//线程数量
+static uint_t th_capa = 0;			//线程池容量
 
 //线程循环变量
 static int isExit = 1;
@@ -21,7 +22,7 @@ typedef struct thread {
 
 //将队列和线程绑定
 typedef struct thpool{
-	uint_t id;						//id
+	uint_t flags;					//线程标志位
 	struct annulus * queue;			//队列
 	struct thread * pthread;		//线程
 }thpool;
@@ -29,7 +30,7 @@ typedef struct thpool{
 
 //队列结构体
 typedef struct annulus {
-	uint_t id;						//队列ID
+	uint_t flags;					//队列标识
 	uint_t in;						//输入指针
 	uint_t out;						//输出指针
 	uint_t qsize;					//队列元素个数
@@ -44,7 +45,7 @@ typedef struct annulus {
 //创建队列
 static annulus * annulus_queue_init(uint_t capacity);
 
-//入队列
+//入队列g
 static int annulus_queue_push(void * queue,void *arg);
 
 //出队列
@@ -62,16 +63,20 @@ static thread * thread_init(uint_t id,void *arg);
 //线程工作回调函数
 static void * dowork(void *arg);
 
+static void thread_exit();
+
+
 /*============================================G================================*/
 
 //初始化
-thpool * thpool_init(uint_t thsize)
+thpool * thpool_init(uint_t capacity, uint_t thsize)
 {
-	if(thsize == 0) {
-		thsize = 8;
+	if(thsize > capacity){
+		fprintf(stderr,"thpool_init  输入的参数有误");
+		return NULL;
 	}
 
-	thpool * pool = (thpool *)calloc(sizeof(thpool), thsize);
+	thpool * pool = (thpool *)calloc(sizeof(thpool), capacity);
 	if(pool == NULL){
 		fprintf(stderr,"thpool_init error");
 		return NULL;
@@ -90,12 +95,13 @@ thpool * thpool_init(uint_t thsize)
 			return NULL;
 		}
 
-		pool[i].id = i;						//赋值
+		pool[i].flags = 1;						//赋值
 		pool[i].queue = queue;
 		pool[i].pthread = pthread;
 	}
 
-	thread_num = thsize;
+	th_num = thsize;
+	th_capa = capacity;
 
 	return pool;
 }
@@ -104,12 +110,12 @@ thpool * thpool_init(uint_t thsize)
 	uint_t 
 thpool_num()
 {
-	return thread_num;
+	return th_num;
 }
 
 //轮询添加任务
 	void
-thpool_add(thpool* pool,job *job)
+thpool_add_task(thpool* pool,job *job)
 {
 	if(pool == NULL){
 		fprintf(stderr,"thpool is NULL");
@@ -117,21 +123,92 @@ thpool_add(thpool* pool,job *job)
 	}
 	//轮询添加任务
 	static uint_t task_num = 0;			//向哪个线程添加任务
-
 	annulus * queue = NULL;
-
+	
+	//轮询模式添加任务
 	while(1) {
 		queue = pool[task_num].queue;
-		if(queue->qsize == queue->capacity ){
-			task_num = (++task_num) % thread_num;
+		if(queue == NULL) {
+			continue;
+		}
+
+		if(queue->qsize == queue->capacity || queue->flags == 0 ){
+			task_num = (++task_num) % th_num;
 			continue;
 		} else {
 			annulus_queue_push(queue,(void*)job);
-			task_num = (++task_num) % thread_num;
+			task_num = (++task_num) % th_num;
 			break;
 		}
 	}
 }
+
+//增加线程数量
+	uint_t 
+thpool_add_thread(thpool *pool,uint_t thsize)
+{
+	if(pool == NULL || thsize == 0) {
+		fprintf(stderr,"thpool_add_thread 输入的参数有误");
+		return 0;
+	}
+
+	uint_t temp = th_capa - th_num;
+	if(thsize > temp) {
+		thsize = temp;
+	}
+
+	uint_t num = thsize;
+	for(uint_t i = 0; i < th_capa && num >0; ++i)
+	{
+		if(pool[i].flags == 0) {
+			annulus * queue = annulus_queue_init(1024);
+			if(queue == NULL) {
+				fprintf(stderr,"annulus_queue_init create error");
+				return 0;
+			}
+
+			thread * pthread = thread_init(i,queue); //将队列指针传入线程回调函数
+			if(pthread == NULL) {
+				fprintf(stderr,"thread_init error");
+				return 0;
+			}
+
+			pool[i].flags = 1;						//赋值
+			pool[i].queue = queue;
+			pool[i].pthread = pthread;
+			--num;
+			++th_num;
+		}
+	}
+
+	return thsize;
+}
+
+//减少线程
+	uint_t 
+thpool_sub_thread(thpool * pool, uint_t thsize)
+{
+	uint num = 0;
+	for(uint i = th_num -1; num < thsize && i > 0; --i)
+	{
+		if(pool[i].queue->flags == 1 && pool[i].flags == 1 ){
+			pool[i].queue->flags = 0;
+			pool[i].flags=0;
+			++num;
+			--th_num;
+		}
+	}
+	return num;
+}
+
+
+//返回还在工作的线程数量
+	uint_t
+thpool_get_thread()
+{
+	return th_num;
+}
+
 
 //销毁线程池
 	void 
@@ -142,11 +219,13 @@ thpool_destroy(thpool *pool)
 	}
 
 	thread_exit();
-	for(uint_t i = 0; i < thread_num; ++i){
-		annulus_queue_destroy(pool[i].queue );	//释放队列内存
-		//让线程停止
+	for(uint_t i = 0; i < th_capa; ++i){
+		if(pool[i].flags == 1 ) {
+			pool[i].flags = 0;
+			annulus_queue_destroy(pool[i].queue );	//释放队列内存
+		}
 	}
-
+	sleep(1);
 	free(pool);
 }
 
@@ -178,12 +257,19 @@ dowork(void *arg)
 {
 	static int isExit = 1;
 	annulus * queue = (annulus *)arg;
+	struct job * pjob = NULL;
 
 	while(isExit) {
+		if(queue->flags == 0 && annulus_queue_size(queue) == 0)
+		{
+			free(queue->data);
+			free(queue);
+			break;
+		}
 
 		if(annulus_queue_size(queue) > 0) 
 		{
-			struct job * pjob =(struct job*)annulus_queue_pull(queue);
+			pjob =(struct job*)annulus_queue_pull(queue);
 			if(pjob == NULL){
 				continue;
 			}
@@ -195,6 +281,7 @@ dowork(void *arg)
 			func(farg);
 		}
 	}
+	printf("线程[%ld]退出\n",pthread_self());
 	pthread_exit(NULL);
 }
 
@@ -210,6 +297,7 @@ annulus_queue_init(uint_t capacity)
 		return NULL;
 	}
 
+	queue->flags = 1;
 	queue->in = 0;
 	queue->out = 0;
 	queue->qsize = 0;
@@ -274,7 +362,7 @@ annulus_queue_pull(void *queue)
 	pQueue->data[pQueue->out] = NULL;
 	pQueue->out = (++pQueue->out) % pQueue->capacity;
 	--pQueue->qsize;
-	
+
 	return arg;
 }
 
@@ -293,13 +381,20 @@ annulus_queue_destroy(void *queue)
 	if(queue == NULL) {
 		return;
 	}
-	annulus * pQueue = (annulus*)queue;
-	free(pQueue->data);
-	free(pQueue);
+	annulus * pQueue = (annulus *)queue;
+	if(pQueue->flags == 1) {
+		pQueue->flags =0;
+	}
+
 }
+
 
 static void thread_exit()
 {
 	isExit =0;
 }
+
+
+
+
 

@@ -24,18 +24,43 @@ void test01()
 	job->task = pp;
 	job->arg =NULL;
 	
-	thpool * pool =  thpool_init(10);
+	thpool * pool =  thpool_init(10,2);
 	if( pool ==NULL) {
 		return;
 	}
+	
+	uint_t n = thpool_add_thread(pool,1);
+	if(n != 1) {
+		fprintf(stderr,"增加线程失败!");
+		return ;
+	} else {
+		printf("添加一条线程成功\n");
+	}
 
-	for(int i = 0; i< 1000000; i++){
-		thpool_add(pool,job);
+
+	for(int i = 0; i< 3; i++){
+		thpool_add_task(pool,job);
 	}
 	
-	while(1){
-		sleep(1);
+	sleep(2);
+
+	uint_t nu = thpool_sub_thread(pool,2);
+	if(nu != 2) {
+		fprintf(stderr,"减少线程失败");
+	} else {
+		printf("减少2条线程成功\n");
 	}
+	
+	for(int i = 0; i< 3; i++){
+		thpool_add_task(pool,job);
+	}
+	
+	uint_t th = thpool_get_thread();
+	printf("还有子线程:%d\n",th);
+
+	
+	sleep(2);
+	
 
 	thpool_destroy(pool);
 	free(job);
