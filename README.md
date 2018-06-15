@@ -6,6 +6,10 @@ Threads are only for Linux and Unix,(该线程池只适用于linux和unix)
 
 This is a lightweight, completely unlocked thread pool,(这是一个轻量级完全无锁的线程池)
 
+The default task queue size is 1024(默认任务队列的大小是102)
+
+The task queue size API will be switched out later(后续会将任务队列大小的API开换出来)
+
 
 创建线程
 
