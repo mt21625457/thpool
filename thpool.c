@@ -193,6 +193,8 @@ thpool_sub_thread(thpool * pool, uint_t thsize)
 	{
 		if(pool[i].queue->flags == 1 && pool[i].flags == 1 ){
 			pool[i].queue->flags = 0;
+			free(pool[i].pthread);
+			pool[i].pthread = NULL;
 			pool[i].flags=0;
 			++num;
 			--th_num;
@@ -222,6 +224,7 @@ thpool_destroy(thpool *pool)
 	for(uint_t i = 0; i < th_capa; ++i){
 		if(pool[i].flags == 1 ) {
 			pool[i].flags = 0;
+			free(pool[i].pthread);
 			annulus_queue_destroy(pool[i].queue );	//释放队列内存
 		}
 	}
