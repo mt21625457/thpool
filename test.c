@@ -24,7 +24,7 @@ void test01()
 	job->task = pp;
 	job->arg =NULL;
 	
-	thpool * pool =  thpool_init(10,2);
+	thpool * pool =  thpool_init(10,2,1024);
 	if( pool ==NULL) {
 		return;
 	}
@@ -39,7 +39,7 @@ void test01()
 
 
 	for(int i = 0; i< 3; i++){
-		thpool_add_task(pool,job);
+		thpool_add_task(pool,job,ADD_LB);
 	}
 	
 	sleep(2);
@@ -52,7 +52,7 @@ void test01()
 	}
 	
 	for(int i = 0; i< 3; i++){
-		thpool_add_task(pool,job);
+		thpool_add_task(pool,job,ADD_LB);
 	}
 	
 	uint_t th = thpool_get_thread();
