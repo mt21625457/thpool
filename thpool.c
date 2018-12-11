@@ -66,7 +66,7 @@ static void * dowork(void *arg);
 //负载均衡
 static uint_t load_balancing(thpool *queue);
 
-/*============================================G================================*/
+/*============================================================================*/
 
 //初始化
 thpool * thpool_init(uint_t capacity, uint_t thsize,uint_t qlen)
@@ -303,14 +303,10 @@ dowork(void *arg)
             if(pjob == NULL){
                 continue;
             }
-            //void (*func)(void*);
-            //void*farg;
             pjob->task(pjob->arg);
-
-            //func = pjob->task;
-            //farg = pjob->arg;
-            //func(farg);
+            continue;
         }
+        usleep(5);
     }
     //printf("线程[%ld]退出\n",pthread_self());
     pthread_exit(NULL);
