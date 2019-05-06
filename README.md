@@ -11,7 +11,7 @@ The default task queue size is 1024(默认任务队列的大小是102)
 The task queue size API will be switched out later(后续会将任务队列大小的API开换出来)
 
 
-创建线程
+## 创建线程
 
 @capacity         线程池的容量
 
@@ -23,7 +23,7 @@ thpool * thpool_init(uint_t capacity,uint_t thsize);
 
 
 
-添加任务
+## 添加任务
 
 创建的线程池指针
 
@@ -33,7 +33,7 @@ void thpool_add_task(thpool *pool, job *job);
 
 
 
-增加线程数量
+## 增加线程数量
 
 @pool             线程池指针
 
@@ -45,7 +45,7 @@ uint_t thpool_add_thread(thpool * pool, uint_t thsize);
 
 
 
-减少线程数量
+## 减少线程数量
 
 @pool             线程池指针
 
@@ -57,13 +57,13 @@ uint_t thpool_sub_thread(thpool * pool, uint_t thsize);
 
 
 
-返回在工作的线程数量
+##  返回在工作的线程数量
 
 uint_t thpool_get_thread();
 
 
 
-销毁线程池
+## 销毁线程池
 
 @pool             创建要销毁的线程池指针
 
